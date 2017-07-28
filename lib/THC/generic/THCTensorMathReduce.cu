@@ -72,7 +72,7 @@ THCTensor_(renorm)(THCState *state, THCTensor* self, THCTensor* src, real value,
 }
 
 THC_API void
-THCTensor_(std)(THCState *state, THCTensor *self_, THCTensor *src, long dimension, int flag, int keepdim)
+THCTensor_(std)(THCState *state, THCTensor *self_, THCTensor *src, long dimension, int biased, int keepdim)
 {
   THCAssertSameGPU(THCTensor_(checkGPU)(state, 2, self_, src));
   THLongStorage *dim = THCTensor_(newSizeOf)(state, src);
@@ -84,9 +84,9 @@ THCTensor_(std)(THCState *state, THCTensor *self_, THCTensor *src, long dimensio
   src = THCTensor_(newContiguous)(state, src);
 
   if (dimension == THCTensor_(nDimension)(state, src) - 1) {
-    THCTensor_varInnermostDim<THCTensor, real, true>(state, self, src, flag);
+    THCTensor_varInnermostDim<THCTensor, real, true>(state, self, src, biased);
   } else {
-    THCTensor_varOuterDim<THCTensor, real, true>(state, self, src, dimension, flag);
+    THCTensor_varOuterDim<THCTensor, real, true>(state, self, src, dimension, biased);
   }
 
   THCTensor_(free)(state, src);
@@ -98,7 +98,7 @@ THCTensor_(std)(THCState *state, THCTensor *self_, THCTensor *src, long dimensio
 }
 
 THC_API void
-THCTensor_(var)(THCState *state, THCTensor *self_, THCTensor *src, long dimension, int flag, int keepdim)
+THCTensor_(var)(THCState *state, THCTensor *self_, THCTensor *src, long dimension, int biased, int keepdim)
 {
   THCAssertSameGPU(THCTensor_(checkGPU)(state, 2, self_, src));
   THLongStorage *dim = THCTensor_(newSizeOf)(state, src);
@@ -110,9 +110,9 @@ THCTensor_(var)(THCState *state, THCTensor *self_, THCTensor *src, long dimensio
   src = THCTensor_(newContiguous)(state, src);
 
   if (dimension == THCTensor_(nDimension)(state, src) - 1) {
-    THCTensor_varInnermostDim<THCTensor, real, false>(state, self, src, flag);
+    THCTensor_varInnermostDim<THCTensor, real, false>(state, self, src, biased);
   } else {
-    THCTensor_varOuterDim<THCTensor, real, false>(state, self, src, dimension, flag);
+    THCTensor_varOuterDim<THCTensor, real, false>(state, self, src, dimension, biased);
   }
 
   THCTensor_(free)(state, src);
@@ -124,14 +124,14 @@ THCTensor_(var)(THCState *state, THCTensor *self_, THCTensor *src, long dimensio
 }
 
 THC_API accreal
-THCTensor_(stdall)(THCState *state, THCTensor *self)
+THCTensor_(stdall)(THCState *state, THCTensor *self, int biased)
 {
   THCAssertSameGPU(THCTensor_(checkGPU)(state, 1, self));
-  return THCNumerics<accreal>::sqrt((THCTensor_(varall)(state, self)));
+  return THCNumerics<accreal>::sqrt((THCTensor_(varall)(state, self, biased)));
 }
 
 THC_API accreal
-THCTensor_(varall)(THCState *state, THCTensor *self)
+THCTensor_(varall)(THCState *state, THCTensor *self, int biased)
 {
   THCAssertSameGPU(THCTensor_(checkGPU)(state, 1, self));
   accreal mean = THCTensor_(meanall)(state, self);
@@ -148,7 +148,7 @@ THCTensor_(varall)(THCState *state, THCTensor *self)
 
   val = THCNumerics<accreal>::div(
     val,
-    ScalarConvert<ptrdiff_t, accreal>::to(THCTensor_(nElement)(state, self) - 1)
+    ScalarConvert<ptrdiff_t, accreal>::to(THCTensor_(nElement)(state, self) - (biased ? 0 : 1))
   );
 
   THCudaCheck(cudaGetLastError());
@@ -328,6 +328,71 @@ THCTensor_(maxall)(THCState *state, THCTensor *self) {
 
   THCudaCheck(cudaGetLastError());
   return val;
+}
+
+THC_API real
+THCTensor_(medianall)(THCState *state, THCTensor *self) {
+  THCAssertSameGPU(THCTensor_(checkGPU)(state, 1, self));
+
+  real val;
+  ptrdiff_t nelem, k;
+
+  nelem = THCTensor_(nElement)(state, self);
+  k = (nelem-1) >> 1;
+
+  THLongStorage *size = THLongStorage_newWithSize1(nelem);
+  THCTensor *view = THCTensor_(newView)(state, self, size);
+
+  THLongStorage_free(size);
+
+  THCTensor *sorted = THCTensor_(new)(state);
+  THCudaLongTensor *indices = THCudaLongTensor_new(state);
+
+  THCTensor_(sort)(state, sorted, indices, view, 0, 0);
+
+  val = THCTensor_(get1d)(state, sorted, k);
+
+  THCTensor_(free)(state, view);
+  THCTensor_(free)(state, sorted);
+  THCudaLongTensor_free(state, indices);
+
+  THCudaCheck(cudaGetLastError());
+
+  return val;
+}
+
+THC_API void
+THCTensor_(median)(THCState *state,
+                   THCTensor *values,
+                   THCudaLongTensor *indices,
+                   THCTensor *self,
+                   long dimension,
+                   int keepdim) {
+  THCAssertSameGPU(THCTensor_(checkGPU)(state, 1, self));
+
+  long t_size_dim, k;
+
+  t_size_dim = THCTensor_(size)(state, self, dimension);
+
+  k = (t_size_dim-1) >> 1;
+
+  THCTensor *sorted = THCTensor_(new)(state);
+  THCudaLongTensor *sorted_indices = THCudaLongTensor_new(state);
+
+  THCTensor_(sort)(state, sorted, sorted_indices, self, dimension, 0);
+
+  THCTensor_(narrow)(state, values, sorted, dimension, k, 1);
+  THCudaLongTensor_narrow(state, indices, sorted_indices, dimension, k, 1);
+
+  THCTensor_(free)(state, sorted);
+  THCudaLongTensor_free(state, sorted_indices);
+
+  if (!keepdim) {
+    THCTensor_(squeeze1d)(state, values, values, dimension);
+    THCudaLongTensor_squeeze1d(state, indices, indices, dimension);
+  }
+
+  THCudaCheck(cudaGetLastError());
 }
 
 THC_API void

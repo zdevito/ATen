@@ -121,7 +121,7 @@ THCTensor_(addmv)(THCState *state, THCTensor *r_, real beta, THCTensor *t, real 
 
     THCTensor_(addmm)(state, r_, beta, tAsMatrix, alpha, mat, vecAsMatrix);
 
-    // r_ will have answer as matrix, need to return a vecotr
+    // r_ will have answer as matrix, need to return a vector
     THCTensor_(resize1d)(state, r_, r_->size[0]);
     THCTensor_(free)(state, vecAsMatrix);
     THCTensor_(free)(state, tAsMatrix);
@@ -245,7 +245,9 @@ THCTensor_(addmm)(THCState *state, THCTensor *r_, real beta, THCTensor *t, real 
   if(t != r_)
   {
     THCTensor_(resizeAs)(state, r_, t);
-    THCTensor_(copy)(state, r_, t);
+    if (ScalarConvert<real, double>::to(beta) != 0.0) {
+      THCTensor_(copy)(state, r_, t);
+    }
   }
 
   /* r_ */
@@ -402,7 +404,9 @@ THCTensor_(addbmm)(THCState *state, THCTensor *result, real beta, THCTensor *t,
 
   if (t != result) {
     THCTensor_(resizeAs)(state, result, t);
-    THCTensor_(copy)(state, result, t);
+    if (ScalarConvert<real, double>::to(beta) != 0.0) {
+      THCTensor_(copy)(state, result, t);
+    }
   }
 
   THCTensor *slice1 = THCTensor_(new)(state);
@@ -450,7 +454,9 @@ THCTensor_(baddbmm)(THCState *state, THCTensor *result, real beta, THCTensor *t,
 
   if (t != result) {
     THCTensor_(resizeAs)(state, result, t);
-    THCTensor_(copy)(state, result, t);
+    if (ScalarConvert<real, double>::to(beta) != 0.0) {
+      THCTensor_(copy)(state, result, t);
+    }
   }
 
   bool transpose_result;
@@ -486,13 +492,15 @@ THCTensor_(baddbmm)(THCState *state, THCTensor *result, real beta, THCTensor *t,
     ldc = result_->stride[2];
   }
 
-  if (batch1->stride[transpose_result ? 2 : 1] == 1)
+  if (batch1->stride[transpose_result ? 2 : 1] == 1 && 
+   batch1->stride[transpose_result ? 1 : 2] != 0)
   {
     transpose_batch1 = 'n';
     batch1_ = batch1;
     lda = batch1_->stride[transpose_result ? 1 : 2];
   }
-  else if (batch1->stride[transpose_result ? 1 : 2] == 1)
+  else if (batch1->stride[transpose_result ? 1 : 2] == 1 && 
+   batch1->stride[transpose_result ? 2 : 1] != 0)
   {
     transpose_batch1 = 't';
     batch1_ = batch1;
@@ -505,13 +513,15 @@ THCTensor_(baddbmm)(THCState *state, THCTensor *result, real beta, THCTensor *t,
     lda = batch1_->stride[1];
   }
 
-  if (batch2->stride[transpose_result ? 2 : 1] == 1)
+  if (batch2->stride[transpose_result ? 2 : 1] == 1 && 
+   batch2->stride[transpose_result ? 1 : 2] != 0)
   {
     transpose_batch2 = 'n';
     batch2_ = batch2;
     ldb = batch2_->stride[transpose_result ? 1 : 2];
   }
-  else if (batch2->stride[transpose_result ? 1 : 2] == 1)
+  else if (batch2->stride[transpose_result ? 1 : 2] == 1 &&
+   batch2->stride[transpose_result ? 2 : 1] != 0)
   {
     transpose_batch2 = 't';
     batch2_ = batch2;
@@ -523,7 +533,6 @@ THCTensor_(baddbmm)(THCState *state, THCTensor *result, real beta, THCTensor *t,
     batch2_ = THCTensor_(newContiguous)(state, batch2);
     ldb = batch2_->stride[1];
   }
-
   long num_batches = result_->size[0];
 
 #if defined(THC_REAL_IS_FLOAT) || defined(THC_REAL_IS_DOUBLE)
@@ -619,7 +628,7 @@ THCTensor_(baddbmm)(THCState *state, THCTensor *result, real beta, THCTensor *t,
 #endif
 }
 
-THC_API void THCTensor_(btrifact)(THCState *state, THCTensor *ra_, THCudaIntTensor *rpivots_, THCudaIntTensor *rinfo_, THCTensor *a)
+THC_API void THCTensor_(btrifact)(THCState *state, THCTensor *ra_, THCudaIntTensor *rpivots_, THCudaIntTensor *rinfo_, int pivot, THCTensor *a)
 {
 #if defined(THC_REAL_IS_FLOAT) || defined(THC_REAL_IS_DOUBLE)
   THAssert(THCTensor_(checkGPU)(state, 2, ra_, a));
@@ -658,8 +667,20 @@ THC_API void THCTensor_(btrifact)(THCState *state, THCTensor *ra_, THCudaIntTens
 
   long num_batches = ra__->size[0];
 
-  THCudaIntTensor_resize2d(state, rpivots_, num_batches, n);
-  int *pivots_gpu = THCudaIntTensor_data(state, rpivots_);
+  if (!pivot) {
+    THCudaIntTensor *t = THCudaIntTensor_new(state);
+    THCudaIntTensor_range(state, t, 1, n, 1);
+    THCudaIntTensor_unsqueeze1d(state, t, t, 0);
+    THCudaIntTensor** ptrs = (THCudaIntTensor**) THAlloc(sizeof(THCudaIntTensor*)*num_batches);
+    for (long i=0; i<num_batches; i++) {
+      ptrs[i] = t;
+    }
+    THCudaIntTensor_catArray(state, rpivots_, ptrs, num_batches, 0);
+    THCudaIntTensor_free(state, t);
+    THFree(ptrs);
+  } else {
+    THCudaIntTensor_resize2d(state, rpivots_, num_batches, n);
+  }
 
   bool free_rinfo_ = !rinfo_;
   if (rinfo_ == NULL) rinfo_ = THCudaIntTensor_new(state);
@@ -677,6 +698,10 @@ THC_API void THCTensor_(btrifact)(THCState *state, THCTensor *ra_, THCudaIntTens
     (const real**)d_result, THCTensor_(data)(state, ra__),
     ra__->stride[0], num_batches);
 
+  int *pivots_gpu = NULL;
+  if (pivot) {
+    pivots_gpu = THCudaIntTensor_data(state, rpivots_);
+  }
 #ifdef THC_REAL_IS_FLOAT
   THCudaBlas_Sgetrf(state, n, d_result, lda, pivots_gpu, info_gpu, num_batches);
 #elif defined(THC_REAL_IS_DOUBLE)

@@ -276,12 +276,13 @@ def create_generic(top_env, declarations):
     def format_formal(f):
         return '{} {}'.format(f['type'], f['name'])
 
+    excluded_names = set()
     def process_option(option, output_options):
         option['inplace'] = re.search(
             '(^__i|[^_]_$)', option['api_name']) is not None
 
         if re.match(EXCLUDE_PATTERN, option['name']):
-            print("Excluding {}".format(option['name']))
+            excluded_names.add(option['name'])
             raise NYIError("NYI")
         # print(yaml.dump(option))
         formals = get_formals(option)
@@ -355,6 +356,7 @@ def create_generic(top_env, declarations):
                 'name': output_options[0]['name'],
                 'options': output_options,
             })
+    print("ATen Excluded: {}".format(excluded_names))
     return output_declarations
 
 

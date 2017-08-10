@@ -16,8 +16,12 @@ set(src
   MAPMeter.cc
   MSEMeter.cc
 )
-
+IF(WIN32)
+add_library(xtmeter STATIC ${src})
+ELSE()
 add_library(xtmeter SHARED ${src})
+ENDIF()
+
 target_link_libraries(xtmeter ATen)
 
 add_executable(test-meter test/basic.cc ${BACKWARD_ENABLE})

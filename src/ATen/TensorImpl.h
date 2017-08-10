@@ -58,6 +58,14 @@ private:
   std::atomic<int> refcount;
   bool is_scalar;
   Type * type_;
+#ifdef _WIN32
+  // THLongStorage is 32-bit windows, so we need a seperate
+  // storage for size/stride info in ATen so we can return references
+  // to 64-bit data
+protected:
+  mutable std::vector<int64_t> sizes_;
+  mutable std::vector<int64_t> strides_;
+#endif
 };
 
 }

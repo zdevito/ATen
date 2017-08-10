@@ -92,7 +92,6 @@ enum class TypeID {
   NumOptions
 };
 
-
 typedef ArrayRef<int64_t> IntList;
 typedef ArrayRef<Tensor> TensorList;
 

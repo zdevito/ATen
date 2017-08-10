@@ -52,6 +52,9 @@ cmake .. -DCMAKE_INSTALL_PREFIX=/where/you/want # specify your dest directory
 make install
 ```
 
+To install on Windows, you will need to install a [python windows release](https://www.python.org/downloads/windows/) and then `pip install pyyaml` from `cmd.exe`. Then install [CMake](https://cmake.org/download/) and use it to build a Visual Studio project for ATen, which can then build the binaries.
+
+
 ### Example usage
 
 Here is a simple example; again, the syntax follows Torch semantics.

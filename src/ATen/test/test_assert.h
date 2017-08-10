@@ -12,7 +12,7 @@ static inline void barf(const char *fmt, ...) {
 }
 
 #define ASSERT(cond) \
-  if (__builtin_expect(!(cond), 0)) { \
+  if (!(cond)) { \
     barf("%s:%u: %s: Assertion `%s` failed.", __FILE__, __LINE__, __func__, #cond); \
   }
 

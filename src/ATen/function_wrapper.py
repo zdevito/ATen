@@ -277,6 +277,7 @@ def create_generic(top_env, declarations):
         return '{} {}'.format(f['type'], f['name'])
 
     excluded_names = set()
+
     def process_option(option, output_options):
         option['inplace'] = re.search(
             '(^__i|[^_]_$)', option['api_name']) is not None

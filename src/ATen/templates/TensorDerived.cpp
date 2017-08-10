@@ -20,7 +20,12 @@ const char * ${Tensor}::toString() const {
 }
 
 IntList ${Tensor}::sizes() {
+#ifndef _WIN32
   return IntList(reinterpret_cast<int64_t*>(tensor->size),dim());
+#else
+  sizes_ = std::vector<int64_t>(tensor->size, tensor->size + dim());
+  return sizes_;
+#endif
 }
 
 int64_t ${Tensor}::dim() {

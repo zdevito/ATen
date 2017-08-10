@@ -6,3 +6,4 @@ TARGET_LINK_LIBRARIES(basic ATen)
 
 add_executable(atest atest.cpp)
 target_link_libraries(atest ATen)
+install(TARGETS basic RUNTIME DESTINATION "bin")

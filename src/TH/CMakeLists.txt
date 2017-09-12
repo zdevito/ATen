@@ -4,6 +4,9 @@ cmake_minimum_required(VERSION 2.6)
 IF(POLICY CMP0026)
  CMAKE_POLICY(SET CMP0026 OLD)
 ENDIF()
+CMAKE_POLICY(SET CMP0012 NEW)
+CMAKE_POLICY(SET CMP0015 NEW)
+
 
 SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 SET(CMAKE_LIBRARY_PATH /usr/lib/x86_64-linux-gnu/ ${CMAKE_LIBRARY_PATH})
@@ -18,6 +21,10 @@ IF(NOT TH_INSTALL_BIN_SUBDIR
   SET(TH_INSTALL_LIB_SUBDIR "lib" CACHE PATH "TH install library subdirectory")
   SET(TH_INSTALL_INCLUDE_SUBDIR "include" CACHE PATH "TH install include subdirectory")
   SET(TH_INSTALL_CMAKE_SUBDIR "share/cmake/TH" CACHE PATH "TH install cmake subdirectory")
+ENDIF()
+
+IF(NOT TH_LINK_STYLE)
+  set(TH_LINK_STYLE SHARED)
 ENDIF()
 
 ######################################################################
@@ -263,7 +270,7 @@ SET(src ${src} ${hdr} ${simd})
 ##### build section
 ######################################################################
 
-ADD_TORCH_LIBRARY(TH SHARED "${src}")
+ADD_TORCH_LIBRARY(TH ${TH_LINK_STYLE} "${src}")
 
 IF (BUILD_STATIC OR "$ENV{STATIC_TH}" STREQUAL "YES")
   ADD_TORCH_LIBRARY(TH_static STATIC "${src}")
@@ -309,7 +316,7 @@ IF(BLAS_FOUND)
   ELSE ($ENV{TH_BINARY_BUILD})
     TARGET_LINK_LIBRARIES(TH ${BLAS_LIBRARIES})
   ENDIF ($ENV{TH_BINARY_BUILD})
-  
+
   IF(BLAS_INFO STREQUAL "mkl")
     ADD_DEFINITIONS(-DTH_BLAS_MKL)
   ENDIF()

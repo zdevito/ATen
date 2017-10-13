@@ -286,13 +286,16 @@ TH_API void THNN_(MSECriterion_updateOutput)(
           THTensor *input,
           THTensor *target,
           THTensor *output,
-          bool sizeAverage);
+          bool sizeAverage,
+          bool reduce);
 TH_API void THNN_(MSECriterion_updateGradInput)(
           THNNState *state,
           THTensor *input,
           THTensor *target,
+          THTensor *gradOutput,
           THTensor *gradInput,
-          bool sizeAverage);
+          bool sizeAverage,
+          bool reduce);
 
 TH_API void THNN_(MultiLabelMarginCriterion_updateOutput)(
           THNNState *state,
@@ -332,15 +335,13 @@ TH_API void THNN_(PReLU_updateOutput)(
           THNNState *state,
           THTensor *input,
           THTensor *output,
-          THTensor *weight,
-          THIndex_t nOutputPlane);
+          THTensor *weight);
 TH_API void THNN_(PReLU_updateGradInput)(
           THNNState *state,
           THTensor *input,
           THTensor *gradOutput,
           THTensor *gradInput,
-          THTensor *weight,
-          THIndex_t nOutputPlane);
+          THTensor *weight);
 TH_API void THNN_(PReLU_accGradParameters)(
           THNNState *state,
           THTensor *input,
@@ -348,9 +349,6 @@ TH_API void THNN_(PReLU_accGradParameters)(
           THTensor *gradInput,
           THTensor *weight,
           THTensor *gradWeight,
-          THTensor *gradWeightBuf,
-          THTensor *gradWeightBuf2,
-          THIndex_t nOutputPlane,
           accreal scale);
 
 TH_API void THNN_(Linear_updateOutput)(
@@ -405,7 +403,6 @@ TH_API void THNN_(Sigmoid_updateOutput)(
           THTensor *output);
 TH_API void THNN_(Sigmoid_updateGradInput)(
           THNNState *state,
-          THTensor *input,             // [OPTIONAL]
           THTensor *gradOutput,
           THTensor *gradInput,
           THTensor *output);
@@ -600,7 +597,6 @@ TH_API void THNN_(Tanh_updateOutput)(
           THTensor *output);
 TH_API void THNN_(Tanh_updateGradInput)(
           THNNState *state,
-          THTensor *input,             // [OPTIONAL]
           THTensor *gradOutput,
           THTensor *gradInput,
           THTensor *output);

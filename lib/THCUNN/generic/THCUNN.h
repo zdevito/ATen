@@ -242,14 +242,16 @@ TH_API void THNN_(LogSigmoid_updateGradInput)(
 TH_API void THNN_(LogSoftMax_updateOutput)(
                   THCState *state,
                   THCTensor *input,
-                  THCTensor *output);
+                  THCTensor *output,
+                  int dim);
 
 TH_API void THNN_(LogSoftMax_updateGradInput)(
                   THCState *state,
                   THCTensor *input,
                   THCTensor *gradOutput,
                   THCTensor *gradInput,
-                  THCTensor *output);
+                  THCTensor *output,
+                  int dim);
 
 TH_API void THNN_(LookupTable_accGradParameters)(
                   THCState *state,
@@ -664,19 +666,18 @@ TH_API void THNN_(SpatialConvolutionMM_accGradParameters)(
                   int padW, int padH,
                   accreal scale);
 
-TH_API void THNN_(SpatialDepthWiseConvolution_updateOutput)(
+TH_API void THNN_(SpatialDepthwiseConvolution_updateOutput)(
                   THCState *state,
                   THCTensor *input,
                   THCTensor *output,
                   THCTensor *weight,
                   THCTensor *bias,              // [OPTIONAL]
-                  THCTensor *columns,
-                  THCTensor *ones,
                   int kW, int kH,
                   int dW, int dH,
-                  int padW, int padH);
+                  int padW, int padH,
+                  int dilationW, int dilationH);
 
-TH_API void THNN_(SpatialDepthWiseConvolution_updateGradInput)(
+TH_API void THNN_(SpatialDepthwiseConvolution_updateGradInput)(
                   THCState *state,
                   THCTensor *input,
                   THCTensor *gradOutput,
@@ -686,21 +687,18 @@ TH_API void THNN_(SpatialDepthWiseConvolution_updateGradInput)(
                   THCTensor *ones,
                   int kW, int kH,
                   int dW, int dH,
-                  int padW, int padH);
+                  int padW, int padH,
+                  int dilationW, int dilationH);
 
-TH_API void THNN_(SpatialDepthWiseConvolution_accGradParameters)(
+TH_API void THNN_(SpatialDepthwiseConvolution_accGradParameters)(
                   THCState *state,
                   THCTensor *input,
                   THCTensor *gradOutput,
                   THCTensor *gradWeight,
-                  THCTensor *gradBias,          // [OPTIONAL]
-                  THCTensor *columns,
-                  THCTensor *ones,
                   int kW, int kH,
                   int dW, int dH,
                   int padW, int padH,
-                  accreal scale);
-
+                  int dilationW, int dilationH);
 
 TH_API void THNN_(SpatialCrossMapLRN_updateOutput)(
                   THCState *state,
@@ -1072,14 +1070,16 @@ TH_API void THNN_(SoftMarginCriterion_updateGradInput)(
 TH_API void THNN_(SoftMax_updateOutput)(
                   THCState *state,
                   THCTensor *input,
-                  THCTensor *output);
+                  THCTensor *output,
+                  int dim);
 
 TH_API void THNN_(SoftMax_updateGradInput)(
                   THCState *state,
                   THCTensor *input,
                   THCTensor *gradOutput,
                   THCTensor *gradInput,
-                  THCTensor *output);
+                  THCTensor *output,
+                  int dim);
 
 TH_API void THNN_(SoftPlus_updateOutput)(
                   THCState *state,

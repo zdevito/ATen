@@ -2,76 +2,63 @@
 #define TH_GENERIC_FILE "generic/SoftMax.c"
 #else
 
+#ifdef _MSC_VER
+  #define SOFTMAX_SIZE_TYPE int64_t
+  #define SOFTMAX_CAST_TYPE (int64_t)
+#else
+  #define SOFTMAX_SIZE_TYPE uint64_t
+  #define SOFTMAX_CAST_TYPE
+#endif
+
 void THNN_(SoftMax_updateOutput)(
           THNNState *state,
           THTensor *input,
-          THTensor *output)
-{
-  real *input_data, *output_data;
-  ptrdiff_t nframe = 0, dim = 0, stride = 0;
-  ptrdiff_t t;
+          THTensor *output,
+          int dim) {
+  THArgCheck(dim >= 0 && dim < input->nDimension, 4,
+	     "dim out of range (got %d, but input has %d dims)", dim, input->nDimension);
 
-  if (input->nDimension == 1)
-  {
-    nframe = 1;
-    dim = input->size[0];
-    stride = 1;
-  }
-  else if (input->nDimension == 2)
-  {
-    nframe = input->size[0];
-    dim = input->size[1];
-    stride = 1;
-  }
-  else if (input->nDimension == 3)
-  {
-    nframe = 1;
-    dim = input->size[0];
-    stride = input->size[1]*input->size[2];
-  }
-  else if (input->nDimension == 4)
-  {
-    nframe = input->size[0];
-    dim = input->size[1];
-    stride = input->size[2]*input->size[3];
-  }
-  else
-  {
-    THArgCheck(0, 2, "1D, 2D, 3D or 4D tensor expected");
-  }
+  uint64_t outer_size = 1;
+  uint64_t dim_size = input->size[dim];
+  uint64_t inner_size = 1;
+  for (uint64_t i = 0; i < dim; ++i)
+    outer_size *= input->size[i];
+  for (uint64_t i = dim + 1; i < input->nDimension; ++i)
+    inner_size *= input->size[i];
 
   input = THTensor_(newContiguous)(input);
   THTensor_(resizeAs)(output, input);
 
-  input_data = THTensor_(data)(input);
-  output_data = THTensor_(data)(output);
+  real *input_data_base  = THTensor_(data)(input);
+  real *output_data_base = THTensor_(data)(output);
 
-#pragma omp parallel for private(t)
-  for (t = 0; t < stride*nframe; t++)
-  {
-    real *input_ptr = input_data + (t/stride)*dim*stride + t % stride;
-    real *output_ptr = output_data + (t/stride)*dim*stride + t % stride;
+  uint64_t dim_stride = inner_size;
+  uint64_t outer_stride = dim_size * dim_stride;
 
-    real inputMax = -THInf;
-    accreal sum;
+  SOFTMAX_SIZE_TYPE i, d;
 
-    ptrdiff_t d;
-    for (d = 0; d < dim; d++)
-    {
-      if (input_ptr[d*stride] >= inputMax) inputMax = input_ptr[d*stride];
+#pragma omp parallel for private(i, d)
+  for (i = 0; i < SOFTMAX_CAST_TYPE (outer_size * inner_size); i++) {
+    uint64_t outer_idx = i / inner_size;
+    uint64_t inner_idx = i % inner_size;
+    real *input_data  = input_data_base  + outer_idx * outer_stride + inner_idx;
+    real *output_data = output_data_base + outer_idx * outer_stride + inner_idx;
+
+    real input_max = -THInf;
+    for (d = 0; d < SOFTMAX_CAST_TYPE dim_size; d++) {
+      if (input_data[d * dim_stride] >= input_max) input_max = input_data[d * dim_stride];
     }
 
-    sum = 0;
-    for (d = 0; d < dim; d++)
-    {
-      real z = exp(input_ptr[d*stride] - inputMax);
-      output_ptr[d*stride] = z;
+    accreal sum = 0;
+    for (d = 0; d < SOFTMAX_CAST_TYPE dim_size; d++) {
+      real z = exp(input_data[d * dim_stride] - input_max);
+      output_data[d * dim_stride] = z;
       sum += z;
     }
 
-    for (d = 0; d < dim; d++)
-    {
-      output_ptr[d*stride] *= 1/sum;
+    real invsum = 1 / sum; // NOTE: truncate sum to real once
+    for (d = 0; d < SOFTMAX_CAST_TYPE dim_size; d++) {
+      output_data[d * dim_stride] *= invsum;
     }
   }
 
@@ -83,64 +70,49 @@ void THNN_(SoftMax_updateGradInput)(
           THTensor *input,
           THTensor *gradOutput,
           THTensor *gradInput,
-          THTensor *output)
+          THTensor *output,
+          int dim)
 {
-  THNN_CHECK_SHAPE(input, gradOutput);  
-  real *gradInput_data, *gradOutput_data, *output_data;
-  ptrdiff_t nframe = 0, dim = 0, stride = 0;
-  ptrdiff_t t;
+  THNN_CHECK_SHAPE(output, gradOutput);
+  THArgCheck(dim >= 0 && dim < output->nDimension, 6,
+	     "dim out of range (got %d, but input has %d dims)", dim, output->nDimension);
 
-  if (output->nDimension == 1)
-  {
-    nframe = 1;
-    dim = output->size[0];
-    stride = 1;
-  }
-  else if (output->nDimension == 2)
-  {
-    nframe = output->size[0];
-    dim = output->size[1];
-    stride = 1;
-  }
-  else if (output->nDimension == 3)
-  {
-    nframe = 1;
-    dim = output->size[0];
-    stride = output->size[1]*output->size[2];
-  }
-  else if (output->nDimension == 4)
-  {
-    nframe = output->size[0];
-    dim = output->size[1];
-    stride = output->size[2]*output->size[3];
-  }
-  else
-  {
-    THError("1D, 2D, 3D or 4D tensor expected");
-  }
+  uint64_t outer_size = 1;
+  uint64_t dim_size = output->size[dim];
+  uint64_t inner_size = 1;
+  for (uint64_t i = 0; i < dim; ++i)
+    outer_size *= output->size[i];
+  for (uint64_t i = dim + 1; i < output->nDimension; ++i)
+    inner_size *= output->size[i];
 
   gradOutput = THTensor_(newContiguous)(gradOutput);
   output = THTensor_(newContiguous)(output);
-
   THTensor_(resizeAs)(gradInput, output);
-  gradInput_data = THTensor_(data)(gradInput);
-  output_data = THTensor_(data)(output);
-  gradOutput_data = THTensor_(data)(gradOutput);
 
-#pragma omp parallel for private(t)
-  for (t = 0; t < stride*nframe; t++)
+  real *gradInput_data_base  = THTensor_(data)(gradInput);
+  real *output_data_base     = THTensor_(data)(output);
+  real *gradOutput_data_base = THTensor_(data)(gradOutput);
+
+  uint64_t dim_stride = inner_size;
+  uint64_t outer_stride = dim_size * dim_stride;
+
+  SOFTMAX_SIZE_TYPE i, d;
+
+#pragma omp parallel for private(i, d)
+  for (i = 0; i < SOFTMAX_CAST_TYPE (outer_size * inner_size); i++)
   {
-    real *gradInput_ptr = gradInput_data + (t/stride)*dim*stride + t % stride;
-    real *output_ptr = output_data + (t/stride)*dim*stride + t % stride;
-    real *gradOutput_ptr = gradOutput_data + (t/stride)*dim*stride + t % stride;
+    uint64_t outer_idx = i / inner_size;
+    uint64_t inner_idx = i % inner_size;
+    real *gradInput_data  = gradInput_data_base  + outer_idx * outer_stride + inner_idx;
+    real *output_data     = output_data_base     + outer_idx * outer_stride + inner_idx;
+    real *gradOutput_data = gradOutput_data_base + outer_idx * outer_stride + inner_idx;
 
-    ptrdiff_t d;
     accreal sum = 0;
-    for (d = 0; d < dim; d++)
-      sum += (accreal)gradOutput_ptr[d*stride] * output_ptr[d*stride];
+    for (d = 0; d < SOFTMAX_CAST_TYPE dim_size; d++)
+      sum += ((accreal)gradOutput_data[d * dim_stride]) * ((accreal)output_data[d * dim_stride]);
 
-    for (d = 0; d < dim; d++)
-      gradInput_ptr[d*stride] = output_ptr[d*stride] * (gradOutput_ptr[d*stride] - sum);
+    for (d = 0; d < SOFTMAX_CAST_TYPE dim_size; d++)
+      gradInput_data[d * dim_stride] = output_data[d * dim_stride] * (gradOutput_data[d * dim_stride] - sum);
   }
 
   THTensor_(free)(gradOutput);

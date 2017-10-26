@@ -412,5 +412,3 @@ void THTensor_(setRNGState)(THGenerator *_generator, THTensor *self)
 #undef RANDOM64
 
 #endif
-
-#undef RANDOM64

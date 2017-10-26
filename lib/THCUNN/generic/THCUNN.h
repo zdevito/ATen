@@ -683,8 +683,6 @@ TH_API void THNN_(SpatialDepthwiseConvolution_updateGradInput)(
                   THCTensor *gradOutput,
                   THCTensor *gradInput,
                   THCTensor *weight,
-                  THCTensor *columns,
-                  THCTensor *ones,
                   int kW, int kH,
                   int dW, int dH,
                   int padW, int padH,

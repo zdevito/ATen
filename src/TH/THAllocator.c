@@ -4,10 +4,11 @@
 /* needed for ATOMIC_INT_LOCK_FREE */
 /* cannot go in THAtomic.h because of interactions with OpenMP giving
    sorry not implemented errors */
+#if defined(USE_C11_ATOMICS)
 #include <stdatomic.h>
-#if defined(USE_C11_ATOMICS) && defined(ATOMIC_INT_LOCK_FREE) && \
-  ATOMIC_INT_LOCK_FREE == 2
+#if ATOMIC_INT_LOCK_FREE == 2
 #define TH_ATOMIC_IPC_REFCOUNT 1
+#endif
 #elif defined(USE_MSC_ATOMICS) || defined(USE_GCC_ATOMICS)
 #define TH_ATOMIC_IPC_REFCOUNT 1
 #endif

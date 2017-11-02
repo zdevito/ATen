@@ -17,13 +17,16 @@ TH_API void THNN_(AbsCriterion_updateOutput)(
           THTensor *input,             // input tensor
           THTensor *target,            // tensor with target values
           THTensor *output,            // [OUT] a one-element tensor with loss
-          bool sizeAverage);           // if true, the loss will be divided by batch size
+          bool sizeAverage,            // if true, the loss will be divided by batch size
+          bool reduce);
 TH_API void THNN_(AbsCriterion_updateGradInput)(
           THNNState *state,            // library's state
           THTensor *input,             // input tensor
           THTensor *target,            // tensor with target values
+          THTensor *gradOutput,
           THTensor *gradInput,         // [OUT] gradient w.r.t. input
-          bool sizeAverage);           // if true, the gradient will be normalized by batch size
+          bool sizeAverage,            // if true, the gradient will be normalized by batch size
+          bool reduce);
 
 TH_API void THNN_(BCECriterion_updateOutput)(
           THNNState *state,
@@ -420,13 +423,16 @@ TH_API void THNN_(SmoothL1Criterion_updateOutput)(
           THTensor *input,
           THTensor *target,
           THTensor *output,
-          bool sizeAverage);
+          bool sizeAverage,
+          bool reduce);
 TH_API void THNN_(SmoothL1Criterion_updateGradInput)(
           THNNState *state,
           THTensor *input,
           THTensor *target,
+          THTensor *gradOutput,
           THTensor *gradInput,
-          bool sizeAverage);
+          bool sizeAverage,
+          bool reduce);
 
 TH_API void THNN_(SoftMax_updateOutput)(
           THNNState *state,

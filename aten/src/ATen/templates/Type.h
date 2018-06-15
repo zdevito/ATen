@@ -40,7 +40,6 @@ enum class TypeID {
   NumOptions
 };
 
-
 struct AT_API Type {
   explicit Type(Context* context, bool is_variable, bool is_undefined)
       : context(context), is_variable_(is_variable), is_undefined_(is_undefined) {}
@@ -64,6 +63,12 @@ struct AT_API Type {
   virtual size_t elementSizeInBytes() const = 0;
   virtual Type & toBackend(Backend b) const;
   virtual Type & toScalarType(ScalarType s) const;
+  Type & toSparse() const {
+    return this->toBackend(at::toSparse(this->backend()));
+  }
+  Type & toDense() const {
+    return this->toBackend(at::toDense(this->backend()));
+  }
   Context& get_context() const { return *context; }
 
   // contingious IDs for all types in the system
@@ -91,6 +96,7 @@ protected:
   Context* context;
   bool is_variable_;
   bool is_undefined_;
+
 };
 
 inline bool Tensor::is_variable() const noexcept {

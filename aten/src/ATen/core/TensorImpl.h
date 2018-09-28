@@ -48,14 +48,14 @@ class Tensor;
 /**
  * A utility function to convert vector<int> to vector<int64_t>.
  */
-inline std::vector<int64_t> ToVectorint64_t(const std::vector<int>& src) {
+inline std::vector<int64_t> ToVectorint64_t(ArrayRef<int> src) {
   return std::vector<int64_t>(src.begin(), src.end());
 }
 
 /**
  * Return product of all dimensions starting from k
  */
-inline int64_t size_from_dim_(int k, const std::vector<int64_t>& dims) {
+inline int64_t size_from_dim_(int k, IntList dims) {
   int64_t r = 1;
   for (size_t i = k; i < dims.size(); ++i) {
     r *= dims[i];
@@ -64,7 +64,7 @@ inline int64_t size_from_dim_(int k, const std::vector<int64_t>& dims) {
 }
 
 // Product of all dims up to k (not including dims[k])
-inline int64_t size_to_dim_(int k, const std::vector<int64_t>& dims) {
+inline int64_t size_to_dim_(int k, IntList dims) {
   CAFFE_ENFORCE((unsigned)k <= dims.size());
   int64_t r = 1;
   for (int i = 0; i < k; ++i) {
@@ -74,7 +74,7 @@ inline int64_t size_to_dim_(int k, const std::vector<int64_t>& dims) {
 }
 
 // Product of all dims between k and l (not including dims[k] and dims[l])
-inline int64_t size_between_dim_(int k, int l, const std::vector<int64_t>& dims) {
+inline int64_t size_between_dim_(int k, int l, IntList dims) {
   CAFFE_ENFORCE((unsigned)l < dims.size());
   int64_t r = 1;
   if (k < l) {
@@ -268,6 +268,9 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
   const caffe2::TypeMeta& dtype() const {
     return data_type_;
   }
+  size_t itemsize() const {
+    return data_type_.itemsize();
+  }
 
   virtual int64_t storage_offset() const {
     return storage_offset_;
@@ -403,14 +406,14 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
     if ((void*)&src == (void*)this) {
       return;
     }
-    if (data_type_ != src.meta()) {
+    if (data_type_ != src.dtype()) {
       CAFFE_ENFORCE_WITH_CALLER(
           src.is_contiguous(),
           "Right now only copy of contiguous source Tensor is supported.");
-      storage_ = at::Storage(device_type(), src.meta());
-      data_type_ = src.meta();
+      storage_ = at::Storage(device_type(), src.dtype());
+      data_type_ = src.dtype();
     }
-    if (src.size() == -1) {
+    if (src.numel() == -1) {
       sizes_.clear();
       numel_ = -1;
       strides_.clear();
@@ -420,7 +423,7 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
       return;
     }
     Resize(src.dims());
-    if (size() > 0) {
+    if (numel() > 0) {
       if (data_type_.copy()) {
         CAFFE_ENFORCE(
             device_type() == ::at::DeviceType::CPU,
@@ -428,7 +431,7 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
         CAFFE_ENFORCE(
             src.device_type() == ::at::DeviceType::CPU,
             "In CopyFrom source and dest tensors must both be CPU for meta copy");
-        data_type_.copy()(src.data(), raw_mutable_data(data_type_), size());
+        data_type_.copy()(src.data(), raw_mutable_data(data_type_), numel());
       } else {
         // We'll need to use a non-CPU context to perform the copy if
         // one of the context is not CPU since only non-CPU context
@@ -436,20 +439,20 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
         if (src.device_type() != ::at::DeviceType::CPU || device_type() == ::at::DeviceType::CPU) {
           if (!context) {
             src.CreateContext()->CopyBytesToDevice(
-                nbytes(), src.data(), raw_mutable_data(data_type_), device_type());
+                numel() * itemsize(), src.data(), raw_mutable_data(data_type_), device_type());
           } else {
             CAFFE_ENFORCE(
                 context->device_type() == src.device_type(),
                 "Type for provided context does not match the type of source");
             context->CopyBytesToDevice(
-                nbytes(), src.data(), raw_mutable_data(data_type_), device_type());
+                numel() * itemsize(), src.data(), raw_mutable_data(data_type_), device_type());
           }
         } else {
           // In case source context is CPU, and target context is non-CPU
           // We'll have to create a Context from target and perform the
           // copy using that context
           CreateContext()->CopyBytesFromCPU(
-              nbytes(), src.data(), raw_mutable_data(data_type_));
+              numel() * itemsize(), src.data(), raw_mutable_data(data_type_));
         }
       }
     }
@@ -771,7 +774,7 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
    */
   template <typename T>
   inline T* mutable_data() {
-    if ((numel_ == 0 || storage_.data()) && IsType<T>()) {
+    if ((numel_ == 0 || storage_.data()) && storage_.IsType<T>()) {
       return static_cast<T*>(storage_.data()) + storage_offset_;
     }
     // Check it here statically - otherwise TypeMeta would throw the runtime
@@ -783,119 +786,13 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
   }
 
   /**
-   * Returns the number of dimensions of the data.
-   */
-  inline int ndim() const {
-    return sizes_.size();
-  }
-  /**
-   * Returns the size (i.e. the number of items) of the tensor.
-   */
-  inline int64_t size() const {
-    return numel_;
-  }
-  /**
-   * Return the number of bytes each item takes in the tensor.
-   */
-  inline size_t itemsize() const {
-    return storage_.itemsize();
-  }
-  /**
-   * Returns the total number of bytes of the storage.
-   *
-   * This is equivalent to calling size() * itemsize().
-   */
-  inline size_t nbytes() const {
-    return numel_ * itemsize();
-    ;
-  }
-
-  // NB: This capacity may also include available space
-  // in the storage BEFORE the tensor data, if storage_offset != 0
-  inline size_t capacity_nbytes() const {
-    return storage_.capacity();
-  }
-  /**
    * Returns the dimensions of the tensor as a vector.
    */
   inline const std::vector<int64_t>& dims() const {
+    // TODO: This method will no longer work if we change the
+    // internal representation of dims().  That's BAD.  Let's get
+    // people to stop using this.
     return sizes_;
-  }
-
-  inline int64_t size_from_dim(int k) const {
-    return size_from_dim_(k, sizes_);
-  }
-
-  inline int64_t size_to_dim(int k) const {
-    return size_to_dim_(k, sizes_);
-  }
-
-  inline int64_t size_between_dim(int k, int l) const {
-    return size_between_dim_(k, l, sizes_);
-  }
-
-  /**
-   * Returns the 'canonical' version of a (usually)  user-specified axis,
-   * allowing for negative indexing (e.g., -1 for the last axis).
-   *
-   * @param axis_index the axis index.
-   *        If 0 <= index < ndim(), return index.
-   *        If -ndim <= index <= -1, return (ndim() - (-index)),
-   *        e.g., the last axis index (ndim() - 1) if index == -1,
-   *        the second to last if index == -2, etc.
-   *        Dies on out of range index.
-   */
-  inline int canonical_axis_index(int axis_index) const {
-    return canonical_axis_index_(axis_index, ndim());
-  }
-
-  /**
-   * Checks if the tensor content is of the given data type.
-   */
-  template <typename T>
-  inline bool IsType() const {
-    return storage_.IsType<T>();
-  }
-  /**
-   * Returns the TypeMeta object associated with the current data type.
-   */
-  inline const caffe2::TypeMeta& meta() const {
-    return data_type_;
-  }
-
-  /**
-   * Returns the i-th dimension of the tensor in int.
-   *
-   * This function returns an int value instead of int64_t, which depending on
-   * the typedef could be int64. If you want int64 dim values, make sure you
-   * call dim() instead.
-   */
-  inline int dim32(const int i) const {
-#ifndef NDEBUG
-    CAFFE_ENFORCE_LT_WITH_CALLER(i, static_cast<int>(sizes_.size()), "Exceeding ndim limit");
-    CAFFE_ENFORCE_GE_WITH_CALLER(i, 0, "Cannot have negative dimension index");
-#endif
-    CAFFE_ENFORCE_LT_WITH_CALLER(sizes_[i], std::numeric_limits<int>::max());
-    return static_cast<int>(sizes_[i]);
-  }
-
-  /**
-   * Returns the i-th dimension of the tensor. Note that the passed in index
-   * must be between 0 (inclusive) and the number of dimensions, otherwise
-   * this function will produce a fatal message.
-   */
-  inline int64_t dim(const int i) const {
-#ifndef NDEBUG
-    CAFFE_ENFORCE_LT_WITH_CALLER(i, static_cast<int>(sizes_.size()), "Exceeding ndim limit");
-    CAFFE_ENFORCE_GE_WITH_CALLER(i, 0, "Cannot have negative dimension index");
-#endif
-    return sizes_[i];
-  }
-
-  void ExtractDeviceOption(caffe2::DeviceOption* device) const {
-    auto* context = GetStaticContext();
-    CHECK(context);
-    context->ExtractDeviceOption(device, data());
   }
 
  protected:
@@ -978,8 +875,8 @@ struct CAFFE2_API TensorImpl : public c10::intrusive_ptr_target {
 
   inline void update_to_contiguous_strides() {
     strides_.resize(sizes_.size());
-    if (ndim() > 0) {
-      int last_idx = ndim() - 1;
+    if (dim() > 0) {
+      int last_idx = dim() - 1;
       strides_[last_idx] = 1;
       for (auto i = last_idx - 1; i >= 0; --i) {
         strides_[i] = strides_[i + 1] * std::max<int64_t>(sizes_[i + 1], 1);

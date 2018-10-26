@@ -17,17 +17,6 @@
     - THTensor* self
 ]]
 [[
-  name: resize_
-  return: self
-  cname: resize
-  cpu_half: True
-  arguments:
-    - THTensor* self
-    - arg: IntListSize size
-      long_args: True
-    - CONSTANT {}
-]]
-[[
   name: set_
   cname: set
   cpu_half: True
@@ -1054,18 +1043,6 @@
           wrap_dim: self
         - arg: bool keepdim
           default: "false"
-]]
-[[
-  name: _th_get_device
-  cname: getDevice
-  device_guard: False
-  variants:
-    - function
-  backends:
-    - CUDA
-  return: long
-  arguments:
-    - THTensor* self
 ]]
 [[
   name: _abs

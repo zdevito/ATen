@@ -674,6 +674,9 @@ inline Tensor Tensor::cumprod(int64_t dim) const {
 inline Tensor Tensor::det() const {
     return type().det(*this);
 }
+inline Tensor Tensor::diag_embed(int64_t offset, int64_t dim1, int64_t dim2) const {
+    return type().diag_embed(*this, offset, dim1, dim2);
+}
 inline Tensor Tensor::diagflat(int64_t offset) const {
     return type().diagflat(*this, offset);
 }
@@ -1093,6 +1096,9 @@ inline Tensor & Tensor::transpose_(int64_t dim0, int64_t dim1) {
 }
 inline Tensor Tensor::flip(IntList dims) const {
     return type().flip(*this, dims);
+}
+inline Tensor Tensor::roll(IntList shifts, IntList dims) const {
+    return type().roll(*this, shifts, dims);
 }
 inline Tensor Tensor::rot90(int64_t k, IntList dims) const {
     return type().rot90(*this, k, dims);

@@ -426,6 +426,7 @@ struct CAFFE2_API Type {
   virtual Tensor cumprod(const Tensor & self, int64_t dim, ScalarType dtype) const = 0;
   virtual Tensor cumprod(const Tensor & self, int64_t dim) const = 0;
   virtual Tensor det(const Tensor & self) const = 0;
+  virtual Tensor diag_embed(const Tensor & self, int64_t offset, int64_t dim1, int64_t dim2) const = 0;
   virtual Tensor diagflat(const Tensor & self, int64_t offset) const = 0;
   virtual Tensor diagonal(const Tensor & self, int64_t offset, int64_t dim1, int64_t dim2) const = 0;
   virtual Tensor div(const Tensor & self, const Tensor & other) const = 0;
@@ -566,6 +567,7 @@ struct CAFFE2_API Type {
   virtual Tensor transpose(const Tensor & self, int64_t dim0, int64_t dim1) const = 0;
   virtual Tensor & transpose_(Tensor & self, int64_t dim0, int64_t dim1) const = 0;
   virtual Tensor flip(const Tensor & self, IntList dims) const = 0;
+  virtual Tensor roll(const Tensor & self, IntList shifts, IntList dims) const = 0;
   virtual Tensor rot90(const Tensor & self, int64_t k, IntList dims) const = 0;
   virtual Tensor trunc(const Tensor & self) const = 0;
   virtual Tensor & trunc_(Tensor & self) const = 0;

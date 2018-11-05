@@ -469,6 +469,7 @@ public:
   Tensor cumprod(int64_t dim, ScalarType dtype) const;
   Tensor cumprod(int64_t dim) const;
   Tensor det() const;
+  Tensor diag_embed(int64_t offset=0, int64_t dim1=-2, int64_t dim2=-1) const;
   Tensor diagflat(int64_t offset=0) const;
   Tensor diagonal(int64_t offset=0, int64_t dim1=0, int64_t dim2=1) const;
   Tensor div(const Tensor & other) const;
@@ -609,6 +610,7 @@ public:
   Tensor transpose(int64_t dim0, int64_t dim1) const;
   Tensor & transpose_(int64_t dim0, int64_t dim1);
   Tensor flip(IntList dims) const;
+  Tensor roll(IntList shifts, IntList dims) const;
   Tensor rot90(int64_t k=1, IntList dims={0,1}) const;
   Tensor trunc() const;
   Tensor & trunc_();

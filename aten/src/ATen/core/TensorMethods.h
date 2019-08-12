@@ -71,12 +71,6 @@ inline Tensor & Tensor::set_names_(c10::optional<DimnameList> names) const {
     return table->getOp<Tensor & (Tensor &, c10::optional<DimnameList>)>(tensorTypeIdToBackend(type_id()), is_variable())(const_cast<Tensor&>(*this), names);
 }
 #endif
-#ifdef BUILD_NAMEDTENSOR
-inline Tensor Tensor::set_names(c10::optional<DimnameList> names) const {
-    static auto table = globalATenDispatch().getOpTable("aten::set_names(Tensor(a!) self, Dimname[]? names) -> Tensor(a!)");
-    return table->getOp<Tensor (const Tensor &, c10::optional<DimnameList>)>(tensorTypeIdToBackend(type_id()), is_variable())(*this, names);
-}
-#endif
 inline Tensor Tensor::abs() const {
     static auto table = globalATenDispatch().getOpTable("aten::abs(Tensor self) -> Tensor");
     return table->getOp<Tensor (const Tensor &)>(tensorTypeIdToBackend(type_id()), is_variable())(const_cast<Tensor&>(*this));
@@ -1816,10 +1810,10 @@ inline bool is_quantized(Tensor self) {
   return self.is_quantized();
 }
 
-#define DEFINE_CAST(T, name, _)                  \
+#define DEFINE_CAST(T, name)                     \
   template <>                                    \
   inline T* Tensor::data() const {               \
-    TORCH_CHECK(                                    \
+    TORCH_CHECK(                                 \
         scalar_type() == ScalarType::name,       \
         "expected scalar type ",                 \
         #name,                                   \
@@ -1832,7 +1826,7 @@ AT_FORALL_SCALAR_TYPES_WITH_COMPLEX_EXCEPT_COMPLEX_HALF(DEFINE_CAST)
 AT_FORALL_QINT_TYPES(DEFINE_CAST)
 #undef DEFINE_CAST
 
-#define DEFINE_ITEM(T, name, _)   \
+#define DEFINE_ITEM(T, name)      \
   template <>                     \
   inline T Tensor::item() const { \
     return item().to##name();     \
